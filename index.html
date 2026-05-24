@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Keys — Virtual Piano</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230a0a0f'/><text y='140' x='16' font-size='140'>🎹</text></svg>">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a0f;
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
+    user-select: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -40%; left: -20%;
+    width: 140%; height: 140%;
+    background: radial-gradient(ellipse at 50% 120%, rgba(120, 80, 50, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(60, 40, 80, 0.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    padding: 30px 20px 80px;
+  }
+
+  .header { text-align: center; }
+  .header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: #f0e6d6;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    text-shadow: 0 2px 20px rgba(240, 200, 140, 0.15);
+  }
+  .header p {
+    font-size: 0.8rem;
+    color: rgba(200, 180, 160, 0.45);
+    letter-spacing: 0.15em;
+    font-weight: 300;
+  }
+
+  /* Top bar: layout + presets */
+  .top-bar {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .layout-toggle {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(200, 180, 160, 0.1);
+    border-radius: 24px;
+    padding: 3px;
+  }
+  .preset-bar {
+    display: flex;
+    align-items: center;
+  }
+
+  .layout-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: none;
+    background: transparent;
+    color: rgba(200, 180, 160, 0.4);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.25s;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .preset-select {
+    padding: 7px 32px 7px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(200, 180, 160, 0.15);
+    background: rgba(255,255,255,0.03);
+    color: rgba(230, 200, 150, 0.85);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.25s;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(200,180,160,0.5)' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    min-width: 140px;
+  }
+  .preset-select:hover {
+    border-color: rgba(200, 170, 100, 0.35);
+    background-color: rgba(200, 170, 100, 0.06);
+  }
+  .preset-select:focus {
+    outline: none;
+    border-color: rgba(200, 170, 100, 0.4);
+    box-shadow: 0 0 12px rgba(200, 170, 100, 0.08);
+  }
+  .preset-select option {
+    background: #1a1a22;
+    color: #e0d6c6;
+    padding: 6px;
+  }
+  .layout-btn:hover { color: rgba(200, 180, 160, 0.7); }
+  .layout-btn.active {
+    background: rgba(200, 170, 100, 0.12);
+    color: rgba(230, 200, 150, 0.9);
+  }
+
+  /* Piano body */
+  .piano-body {
+    background: linear-gradient(180deg, #1a1a22 0%, #12121a 100%);
+    border-radius: 16px 16px 24px 24px;
+    padding: 24px 28px 32px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .piano-body::before {
+    content: '';
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(200,170,120,0.3), transparent);
+    border-radius: 2px;
+  }
+  .piano { display: flex; position: relative; touch-action: none; }
+
+  /* White keys */
+  .key {
+    width: 52px; height: 220px;
+    background: linear-gradient(180deg, #f8f6f1 0%, #e8e4dc 85%, #d8d2c8 100%);
+    border: 1px solid rgba(0,0,0,0.12); border-top: none;
+    border-radius: 0 0 6px 6px;
+    margin-right: 2px; position: relative; cursor: pointer;
+    transition: background 0.06s, box-shadow 0.06s, transform 0.06s;
+    z-index: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    padding-bottom: 12px;
+    box-shadow: -1px 0 0 rgba(0,0,0,0.06), 1px 0 0 rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.15), inset 0 -3px 4px rgba(0,0,0,0.04);
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+  }
+  .key:last-child { margin-right: 0; }
+  .key:hover { background: linear-gradient(180deg, #fffdf8 0%, #f0ece4 85%, #e0dcd4 100%); }
+  .key.active {
+    background: linear-gradient(180deg, #ede9e0 0%, #d8d2c6 85%, #ccc6ba 100%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.12), inset 0 1px 3px rgba(0,0,0,0.08);
+    transform: translateY(2px);
+  }
+  .key .label { font-size: 0.6rem; color: rgba(80,70,60,0.55); font-weight: 700; letter-spacing: 0.05em; pointer-events: none; }
+  .key .note-name { font-family: 'Playfair Display', serif; font-size: 0.68rem; color: rgba(80,70,60,0.3); margin-bottom: 3px; pointer-events: none; }
+
+  /* Black keys */
+  .key.black {
+    width: 34px; height: 140px;
+    background: linear-gradient(180deg, #2a2a32 0%, #1a1a22 60%, #111118 100%);
+    border: none; border-radius: 0 0 5px 5px;
+    position: absolute; z-index: 2; margin: 0;
+    justify-content: flex-end; padding-bottom: 10px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3), inset 0 -4px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .key.black:hover { background: linear-gradient(180deg, #343440 0%, #222230 60%, #1a1a24 100%); }
+  .key.black.active {
+    background: linear-gradient(180deg, #222230 0%, #161620 60%, #0e0e16 100%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 4px rgba(0,0,0,0.4);
+    transform: translateY(2px);
+  }
+  .key.black .label { color: rgba(200,180,160,0.45); font-size: 0.5rem; font-weight: 700; }
+  .key.black .note-name { color: rgba(200,180,160,0.25); font-size: 0.55rem; margin-bottom: 2px; }
+
+  .key.active::after {
+    content: ''; position: absolute; bottom: -8px; width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(230,180,100,0.7); box-shadow: 0 0 12px rgba(230,180,100,0.4);
+  }
+  .key.sustained { background: linear-gradient(180deg, #f2ede4 0%, #e2dcd0 85%, #d4cec2 100%); }
+  .key.sustained::after { content: ''; position: absolute; bottom: -8px; width: 5px; height: 5px; border-radius: 50%; background: rgba(160,140,100,0.5); box-shadow: 0 0 8px rgba(160,140,100,0.3); }
+  .key.black.sustained { background: linear-gradient(180deg, #28283a 0%, #1c1c2a 60%, #14141e 100%); }
+
+  /* MIDI status badge */
+  .midi-status {
+    font-size: 0.58rem;
+    color: rgba(200,180,160,0.25);
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(200,180,160,0.06);
+    background: rgba(255,255,255,0.015);
+    white-space: nowrap;
+    transition: all 0.3s;
+  }
+  .midi-status.connected {
+    color: rgba(120,200,150,0.7);
+    border-color: rgba(120,200,150,0.2);
+    background: rgba(120,200,150,0.05);
+  }
+
+  /* Full 88 piano scroll */
+  .piano-body:has(.full88-scroll) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 90vw;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .piano-body:has(.full88-scroll)::-webkit-scrollbar { height: 6px; }
+  .piano-body:has(.full88-scroll)::-webkit-scrollbar-track { background: transparent; }
+  .piano-body:has(.full88-scroll)::-webkit-scrollbar-thumb { background: rgba(200,170,120,0.2); border-radius: 3px; }
+  .piano-body:has(.full88-scroll)::-webkit-scrollbar-thumb:hover { background: rgba(200,170,120,0.35); }
+
+  .piano.full88-scroll .key {
+    padding-bottom: 6px;
+    margin-right: 1px;
+    border-radius: 0 0 4px 4px;
+  }
+  .piano.full88-scroll .key .note-name {
+    font-size: 0.42rem;
+    color: rgba(80,70,60,0.35);
+  }
+  .piano.full88-scroll .key.black {
+    border-radius: 0 0 3px 3px;
+    padding-bottom: 5px;
+  }
+
+  /* Controls row */
+  .controls { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-label { font-size: 0.65rem; color: rgba(200,180,160,0.35); letter-spacing: 0.1em; text-transform: uppercase; }
+  .octave-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid rgba(200,180,160,0.15); background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.6); font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .octave-btn:hover { background: rgba(255,255,255,0.08); color: rgba(240,220,180,0.9); }
+  .octave-display { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: rgba(230,200,150,0.7); min-width: 20px; text-align: center; }
+
+  .sustain-btn, .designer-toggle {
+    padding: 5px 14px; border-radius: 20px;
+    border: 1px solid rgba(200,180,160,0.15); background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.45); font-size: 0.65rem; letter-spacing: 0.08em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+  }
+  .sustain-btn:hover, .designer-toggle:hover { background: rgba(255,255,255,0.08); }
+  .sustain-btn.active { background: rgba(200,170,100,0.12); border-color: rgba(200,170,100,0.3); color: rgba(230,200,150,0.8); }
+  .designer-toggle.active { background: rgba(130,160,200,0.1); border-color: rgba(130,160,200,0.2); color: rgba(170,200,240,0.8); }
+
+  /* FX + Sound Designer row */
+  .effects-rack { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .effects-label { font-size: 0.6rem; color: rgba(200,180,160,0.3); letter-spacing: 0.1em; text-transform: uppercase; margin-right: 2px; }
+  .fx-btn {
+    padding: 4px 11px; border-radius: 14px;
+    border: 1px solid rgba(200,180,160,0.1); background: rgba(255,255,255,0.02);
+    color: rgba(200,180,160,0.35); font-size: 0.6rem; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.25s; font-family: 'DM Sans', sans-serif; font-weight: 500;
+  }
+  .fx-btn:hover { background: rgba(255,255,255,0.06); color: rgba(200,180,160,0.6); }
+  .fx-btn.active { background: rgba(130,160,200,0.12); border-color: rgba(130,160,200,0.25); color: rgba(170,200,240,0.8); }
+
+  /* ===================== ARPEGGIATOR PANEL ===================== */
+  .arp-panel {
+    display: none;
+    background: rgba(16, 16, 24, 0.92);
+    border: 1px solid rgba(130,160,200,0.12);
+    border-radius: 14px;
+    padding: 14px 20px;
+    width: 100%;
+    max-width: 560px;
+    backdrop-filter: blur(10px);
+  }
+  .arp-panel.open { display: block; }
+  .arp-row {
+    display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap;
+  }
+  .arp-control { display: flex; align-items: center; gap: 6px; }
+  .arp-label {
+    font-size: 0.55rem; color: rgba(170,200,240,0.45); letter-spacing: 0.08em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .arp-select {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(130,160,200,0.15);
+    color: rgba(200,210,230,0.8); font-size: 0.65rem; padding: 4px 8px;
+    border-radius: 8px; font-family: 'DM Sans', sans-serif; cursor: pointer;
+    outline: none;
+  }
+  .arp-select:focus { border-color: rgba(130,160,200,0.35); }
+  .arp-slider {
+    width: 60px; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(130,160,200,0.15); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .arp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(170,200,240,0.7); border: none; cursor: pointer;
+  }
+  .arp-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(170,200,240,0.7); border: none; cursor: pointer;
+  }
+
+  /* ===================== SOUND DESIGNER PANEL ===================== */
+  .sound-designer {
+    display: none;
+    background: rgba(16, 16, 24, 0.95);
+    border: 1px solid rgba(200,180,160,0.08);
+    border-radius: 16px;
+    padding: 24px 28px;
+    width: 100%;
+    max-width: 760px;
+    backdrop-filter: blur(10px);
+  }
+  .sound-designer.open { display: block; }
+
+  .sd-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem;
+    color: rgba(230,200,150,0.6);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .sd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 700px) { .sd-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .sd-grid { grid-template-columns: 1fr; } }
+
+  .sd-section {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(200,180,160,0.06);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .sd-section-title {
+    font-size: 0.6rem;
+    color: rgba(200,180,160,0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sd-osc-toggle {
+    padding: 2px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(200,180,160,0.15);
+    background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.35);
+    font-size: 0.52rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+  }
+  .sd-osc-toggle:hover { background: rgba(255,255,255,0.07); color: rgba(200,180,160,0.6); }
+  .sd-osc-toggle.enabled {
+    background: rgba(200,170,100,0.1);
+    border-color: rgba(200,170,100,0.25);
+    color: rgba(230,200,150,0.7);
+  }
+  .sd-section.osc-disabled { opacity: 0.4; }
+  .sd-section.osc-disabled .sd-slider,
+  .sd-section.osc-disabled .sd-select { pointer-events: none; }
+
+  .sd-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .sd-row:last-child { margin-bottom: 0; }
+
+  .sd-label {
+    font-size: 0.6rem;
+    color: rgba(200,180,160,0.35);
+    letter-spacing: 0.04em;
+    min-width: 55px;
+  }
+
+  .sd-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    outline: none;
+    flex: 1;
+    margin: 0 8px;
+    cursor: pointer;
+  }
+  .sd-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: rgba(200,180,150,0.6);
+    border: 1px solid rgba(200,180,150,0.3);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .sd-slider::-webkit-slider-thumb:hover { background: rgba(230,200,150,0.8); }
+  .sd-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: rgba(200,180,150,0.6); border: 1px solid rgba(200,180,150,0.3);
+    cursor: pointer;
+  }
+
+  .sd-value {
+    font-size: 0.55rem;
+    color: rgba(200,180,160,0.3);
+    min-width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sd-select {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(200,180,160,0.1);
+    border-radius: 6px;
+    color: rgba(200,180,160,0.6);
+    font-size: 0.6rem;
+    padding: 3px 6px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    outline: none;
+    flex: 1;
+    margin-left: 8px;
+  }
+  .sd-select option { background: #1a1a22; color: #ccc; }
+
+  .sd-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .sd-action-btn {
+    padding: 5px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(200,180,160,0.12);
+    background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.45);
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .sd-action-btn:hover { background: rgba(255,255,255,0.07); color: rgba(200,180,160,0.7); }
+
+  /* Visualizer — waveform analyzer */
+  .visualizer { position: fixed; bottom: 0; left: 0; width: 100%; height: 120px; pointer-events: none; z-index: 0; opacity: 0.7; }
+  .visualizer canvas { width: 100%; height: 100%; display: block; }
+  .note-particle { position: absolute; bottom: 0; width: 3px; border-radius: 2px; animation: rise 1.5s ease-out forwards; opacity: 0; }
+  @keyframes rise { 0% { opacity: 0.8; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-80px) scale(0.3); } }
+
+  /* Transpose control */
+  .transpose-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .transpose-display {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem;
+    color: rgba(230,200,150,0.7);
+    min-width: 32px;
+    text-align: center;
+  }
+  .transpose-display.shifted { color: rgba(200,170,100,0.9); }
+
+  /* Labels toggle */
+  .labels-btn {
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid rgba(200,180,160,0.15); background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.45); font-size: 0.6rem; letter-spacing: 0.08em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+  }
+  .labels-btn:hover { background: rgba(255,255,255,0.08); }
+  .labels-btn.active { background: rgba(200,170,100,0.12); border-color: rgba(200,170,100,0.3); color: rgba(230,200,150,0.8); }
+
+  /* Hide labels when toggled off */
+  .piano.hide-labels .label,
+  .piano.hide-labels .note-name { opacity: 0; transition: opacity 0.2s; }
+  .piano .label,
+  .piano .note-name { transition: opacity 0.2s; }
+
+  .hint { position: fixed; bottom: 16px; font-size: 0.65rem; color: rgba(200,180,160,0.2); letter-spacing: 0.1em; }
+
+  /* ===================== STUDIO ===================== */
+  .studio-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .rec-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(220, 80, 80, 0.25);
+    background: rgba(220, 80, 80, 0.06);
+    color: rgba(220, 140, 140, 0.7);
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.25s;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+  }
+  .rec-btn:hover { background: rgba(220, 80, 80, 0.12); color: rgba(220, 140, 140, 0.9); }
+  .rec-btn.recording {
+    background: rgba(220, 80, 80, 0.15);
+    border-color: rgba(220, 80, 80, 0.5);
+    color: rgba(240, 120, 120, 1);
+    animation: rec-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 80, 80, 0); }
+    50% { box-shadow: 0 0 16px 2px rgba(220, 80, 80, 0.2); }
+  }
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(220, 80, 80, 0.6);
+    transition: background 0.2s;
+  }
+  .rec-btn.recording .rec-dot { background: rgba(240, 80, 80, 1); }
+
+  /* Overdub mode — rec button gets a dual-color glow */
+  .rec-btn.overdubbing {
+    border-color: rgba(100, 180, 240, 0.4);
+    background: linear-gradient(135deg, rgba(220, 80, 80, 0.15), rgba(100, 180, 240, 0.1));
+    animation: overdub-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes overdub-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(100, 180, 240, 0), 0 0 0 0 rgba(220, 80, 80, 0); }
+    50% { box-shadow: 0 0 12px 2px rgba(100, 180, 240, 0.15), 0 0 16px 2px rgba(220, 80, 80, 0.1); }
+  }
+
+  /* Overdub indicator badge */
+  .overdub-indicator {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(100, 180, 240, 0.08);
+    border: 1px solid rgba(100, 180, 240, 0.2);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(140, 200, 255, 0.7);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    animation: overdub-badge-in 0.3s ease-out;
+  }
+  .overdub-indicator.active {
+    display: flex;
+  }
+  .overdub-icon {
+    font-size: 0.5rem;
+    color: rgba(100, 180, 240, 0.6);
+  }
+  @keyframes overdub-badge-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Metronome controls */
+  .metro-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(200,180,160,0.08);
+    border-radius: 20px;
+    padding: 3px 6px;
+  }
+  .metro-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(200,180,160,0.12);
+    background: rgba(255,255,255,0.02);
+    color: rgba(200,180,160,0.35);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .metro-btn:hover { background: rgba(255,255,255,0.06); color: rgba(200,180,160,0.6); }
+  .metro-btn.active {
+    background: rgba(200,170,100,0.12);
+    border-color: rgba(200,170,100,0.3);
+    color: rgba(230,200,150,0.9);
+  }
+  .metro-btn.active .metro-icon { animation: metro-tick 0.5s ease-in-out; }
+  .metro-tap {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(200,180,160,0.1);
+    background: rgba(255,255,255,0.02);
+    color: rgba(200,180,160,0.4);
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .metro-tap:hover { background: rgba(255,255,255,0.06); color: rgba(200,180,160,0.7); }
+  .metro-bpm {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem;
+    color: rgba(230,200,150,0.6);
+    min-width: 32px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .metro-time-sig {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(200,180,160,0.1);
+    border-radius: 10px;
+    color: rgba(200,180,160,0.5);
+    font-size: 0.55rem;
+    padding: 2px 4px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    outline: none;
+  }
+  .metro-time-sig option { background: #1a1a22; color: #ccc; }
+
+  /* Countdown overlay */
+  .countdown-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(10, 10, 15, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .countdown-overlay.active {
+    display: flex;
+  }
+  .countdown-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 8rem;
+    font-weight: 700;
+    color: rgba(230, 200, 150, 0.8);
+    text-shadow: 0 0 40px rgba(230, 200, 150, 0.3);
+    animation: countdown-pop 0.5s ease-out;
+  }
+  @keyframes countdown-pop {
+    0% { transform: scale(1.5); opacity: 0; }
+    40% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+  }
+  .countdown-number.beat-flash {
+    color: rgba(240, 120, 120, 0.9);
+    text-shadow: 0 0 40px rgba(240, 120, 120, 0.3);
+  }
+
+  .studio-panel {
+    display: none;
+    width: 100%;
+    max-width: 760px;
+  }
+  .studio-panel.open { display: block; }
+
+  .studio-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .studio-section {
+    background: rgba(16, 16, 24, 0.95);
+    border: 1px solid rgba(200,180,160,0.08);
+    border-radius: 14px;
+    padding: 18px 20px;
+    backdrop-filter: blur(10px);
+  }
+
+  .studio-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.8rem;
+    color: rgba(230,200,150,0.6);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .lib-count-badge {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.55rem;
+    color: rgba(200,180,160,0.3);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(200,180,160,0.08);
+    border-radius: 10px;
+    padding: 2px 8px;
+    letter-spacing: 0.06em;
+  }
+
+  .lib-hint, .track-hint {
+    font-size: 0.58rem;
+    color: rgba(200,180,160,0.2);
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .lib-empty {
+    text-align: center;
+    padding: 24px;
+    color: rgba(200,180,160,0.2);
+    font-size: 0.7rem;
+    font-style: italic;
+  }
+
+  .lib-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(200,180,160,0.06);
+    border-radius: 8px;
+    cursor: grab;
+    transition: all 0.15s;
+  }
+  .lib-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(200,180,160,0.12); }
+  .lib-item.dragging { opacity: 0.5; border-color: rgba(200,170,100,0.3); }
+
+  .lib-waveform {
+    width: 80px;
+    height: 28px;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+
+  .lib-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lib-name {
+    display: block;
+    font-size: 0.68rem;
+    color: rgba(230,200,150,0.7);
+    cursor: text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lib-rename-input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(200,170,100,0.3);
+    border-radius: 4px;
+    color: rgba(230,200,150,0.9);
+    font-size: 0.68rem;
+    padding: 1px 4px;
+    width: 100%;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+  }
+
+  .lib-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .lib-duration, .lib-midi-count {
+    font-size: 0.55rem;
+    color: rgba(200,180,160,0.25);
+    letter-spacing: 0.04em;
+  }
+
+  .lib-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .lib-btn {
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(200,180,160,0.1);
+    background: rgba(255,255,255,0.02);
+    color: rgba(200,180,160,0.4);
+    font-size: 0.55rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+  }
+  .lib-btn:hover { background: rgba(255,255,255,0.06); color: rgba(200,180,160,0.7); }
+  .lib-play { font-size: 0.65rem; }
+  .lib-del { color: rgba(200,120,120,0.4); border-color: rgba(200,120,120,0.1); }
+  .lib-del:hover { color: rgba(220,100,100,0.8); background: rgba(220,80,80,0.08); }
+
+  /* 4-Track Player */
+  .track-transport {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .track-play-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(200,180,160,0.2);
+    background: rgba(255,255,255,0.03);
+    color: rgba(200,180,160,0.6);
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .track-play-btn:hover { background: rgba(255,255,255,0.08); color: rgba(230,200,150,0.9); }
+  .track-play-btn.active { background: rgba(200,170,100,0.12); border-color: rgba(200,170,100,0.3); color: rgba(230,200,150,0.9); }
+
+  .track-time {
+    font-size: 0.6rem;
+    color: rgba(200,180,160,0.35);
+    font-variant-numeric: tabular-nums;
+    min-width: 40px;
+  }
+
+  .tracks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+  }
+
+  .track-playhead-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: rgba(230, 180, 100, 0.6);
+    box-shadow: 0 0 6px rgba(230, 180, 100, 0.3);
+    z-index: 5;
+    pointer-events: none;
+    transition: left 0.08s linear;
+    border-radius: 1px;
+  }
+
+  .track-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    border: 1px solid rgba(200,180,160,0.06);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.015);
+    padding: 6px 8px;
+    transition: all 0.2s;
+    min-height: 44px;
+  }
+  .track-row.drag-over {
+    border-color: rgba(200,170,100,0.3);
+    background: rgba(200,170,100,0.04);
+  }
+  .track-row.has-recording { border-color: rgba(200,180,160,0.1); }
+
+  .track-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .track-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.75rem;
+    color: rgba(230,200,150,0.4);
+    width: 16px;
+    text-align: center;
+  }
+
+  .track-ctrl {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid rgba(200,180,160,0.1);
+    background: rgba(255,255,255,0.02);
+    color: rgba(200,180,160,0.3);
+    font-size: 0.5rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .track-ctrl:hover { background: rgba(255,255,255,0.06); }
+  .track-mute.active { background: rgba(220, 80, 80, 0.15); border-color: rgba(220, 80, 80, 0.3); color: rgba(220, 120, 120, 0.8); }
+  .track-solo.active { background: rgba(200, 170, 100, 0.15); border-color: rgba(200, 170, 100, 0.3); color: rgba(230, 200, 150, 0.8); }
+
+  .track-vol {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 50px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    outline: none;
+    cursor: pointer;
+  }
+  .track-vol::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(200,180,150,0.5);
+    border: 1px solid rgba(200,180,150,0.2);
+    cursor: pointer;
+  }
+  .track-vol::-moz-range-thumb {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: rgba(200,180,150,0.5); border: 1px solid rgba(200,180,150,0.2);
+    cursor: pointer;
+  }
+
+  .track-remove {
+    color: rgba(200,120,120,0.3);
+    border-color: rgba(200,120,120,0.08);
+    font-size: 0.7rem;
+    font-weight: 400;
+  }
+  .track-remove:hover { color: rgba(220,100,100,0.7); background: rgba(220,80,80,0.08); }
+
+  .track-body {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.15);
+  }
+
+  .track-waveform {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .track-label {
+    position: relative;
+    z-index: 2;
+    font-size: 0.58rem;
+    color: rgba(200,180,160,0.25);
+    padding-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .has-recording .track-label {
+    color: rgba(230,200,150,0.5);
+    font-weight: 500;
+  }
+
+  /* Scrollbar styling for library */
+  .library-list::-webkit-scrollbar { width: 4px; }
+  .library-list::-webkit-scrollbar-track { background: transparent; }
+  .library-list::-webkit-scrollbar-thumb { background: rgba(200,180,160,0.15); border-radius: 2px; }
+
+  @media (max-width: 600px) {
+    .lib-item { flex-wrap: wrap; }
+    .lib-waveform { width: 60px; height: 22px; }
+    .lib-actions { width: 100%; justify-content: flex-end; margin-top: 4px; }
+    .track-vol { width: 36px; }
+  }
+
+  /* ===================== MOBILE / TOUCH ===================== */
+  @media (max-width: 600px) {
+    body { justify-content: flex-start; padding-top: env(safe-area-inset-top, 0px); }
+
+    .container { gap: 14px; padding: 16px 10px 60px; width: 100%; }
+
+    .header h1 { font-size: 1.8rem; }
+    .header p { font-size: 0.7rem; }
+
+    /* Stack top bar so layout + presets don't overflow */
+    .top-bar { gap: 8px; flex-direction: column; align-items: center; }
+    .layout-toggle { flex-wrap: wrap; justify-content: center; }
+    .preset-bar { justify-content: center; }
+
+    /* Piano body tighter on mobile */
+    .piano-body { padding: 14px 10px 18px; border-radius: 12px 12px 18px 18px; max-width: 100vw; }
+
+    /* Controls smaller */
+    .controls { gap: 10px; }
+    .octave-btn { width: 36px; height: 36px; font-size: 1.1rem; } /* bigger tap targets */
+    .sustain-btn, .designer-toggle { padding: 8px 16px; font-size: 0.7rem; }
+    .fx-btn { padding: 7px 12px; font-size: 0.65rem; }
+
+    /* Hint text */
+    #hint { font-size: 0.6rem; }
+
+    /* Sound designer full width on mobile */
+    .sound-designer { padding: 16px 12px; }
+    .sd-grid { grid-template-columns: 1fr; gap: 12px; }
+
+    /* Arp panel mobile */
+    .arp-panel { padding: 10px 12px; }
+    .arp-row { gap: 10px; }
+    .arp-select { font-size: 0.6rem; padding: 4px 6px; }
+    .arp-slider { width: 50px; }
+
+    /* Hide keyboard labels on tiny keys */
+    .key .label { display: none; }
+
+    /* MIDI badge hidden on mobile (irrelevant) */
+    .midi-status { display: none; }
+  }
+
+  /* Landscape phone — taller piano, shorter container padding */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+    .container { padding: 8px 10px 20px; gap: 8px; }
+    .header { display: none; } /* hide title in landscape to save vertical space */
+    .piano-body { padding: 10px 10px 14px; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Keys</h1>
+    <p>A virtual piano — use your keyboard to play</p>
+  </div>
+
+  <!-- Layout + Presets -->
+  <div class="top-bar">
+    <div class="layout-toggle">
+      <button class="layout-btn active" id="layoutStd">Standard</button>
+      <button class="layout-btn" id="layoutExt">Extended</button>
+      <button class="layout-btn" id="layoutFull">Full 88</button>
+    </div>
+    <span class="midi-status" id="midiStatus" title="">No MIDI device</span>
+    <div class="preset-bar" id="presetBar">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+
+  <!-- Piano -->
+  <div class="piano-body">
+    <div class="piano" id="piano"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group" id="octaveControls">
+      <span class="control-label">Octave</span>
+      <button class="octave-btn" id="octDown">−</button>
+      <span class="octave-display" id="octDisplay">4</span>
+      <button class="octave-btn" id="octUp">+</button>
+    </div>
+    <div class="control-group transpose-group" id="transposeControls">
+      <span class="control-label">Transpose</span>
+      <button class="octave-btn" id="transDown">−</button>
+      <span class="transpose-display" id="transDisplay">0</span>
+      <button class="octave-btn" id="transUp">+</button>
+    </div>
+    <button class="sustain-btn" id="sustainBtn">Sustain: Off</button>
+    <button class="labels-btn active" id="labelsBtn">Labels</button>
+  </div>
+
+  <!-- Effects + Sound Designer toggle -->
+  <div class="effects-rack">
+    <span class="effects-label">FX</span>
+    <button class="fx-btn" data-fx="reverb">Reverb</button>
+    <button class="fx-btn" data-fx="delay">Delay</button>
+    <button class="fx-btn" data-fx="chorus">Chorus</button>
+    <span style="width:12px"></span>
+    <button class="fx-btn" id="arpToggleBtn">Arp</button>
+    <span style="width:12px"></span>
+    <button class="designer-toggle" id="designerToggle">Sound Designer</button>
+  </div>
+
+  <!-- Arpeggiator Panel -->
+  <div class="arp-panel" id="arpPanel">
+    <div class="arp-row">
+      <div class="arp-control">
+        <span class="arp-label">Pattern</span>
+        <select class="arp-select" id="arpPattern">
+          <option value="up">Up</option>
+          <option value="down">Down</option>
+          <option value="up-down">Up-Down</option>
+          <option value="random">Random</option>
+        </select>
+      </div>
+      <div class="arp-control">
+        <span class="arp-label">Rate</span>
+        <select class="arp-select" id="arpRate">
+          <option value="1/4">1/4</option>
+          <option value="1/8" selected>1/8</option>
+          <option value="1/16">1/16</option>
+          <option value="1/4T">1/4 T</option>
+          <option value="1/8T">1/8 T</option>
+        </select>
+      </div>
+      <div class="arp-control">
+        <span class="arp-label">Octaves</span>
+        <select class="arp-select" id="arpOctaves">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </div>
+      <div class="arp-control">
+        <span class="arp-label">Gate</span>
+        <input type="range" class="arp-slider" id="arpGate" min="10" max="100" value="80">
+      </div>
+    </div>
+  </div>
+
+  <!-- Sound Designer Panel -->
+  <div class="sound-designer" id="soundDesigner">
+    <div class="sd-title">Sound Designer</div>
+    <div class="sd-grid">
+
+      <!-- OSC 1 -->
+      <div class="sd-section">
+        <div class="sd-section-title">Oscillator 1</div>
+        <div class="sd-row">
+          <span class="sd-label">Wave</span>
+          <select class="sd-select" data-param="osc1.type">
+            <option value="sine">Sine</option>
+            <option value="triangle" selected>Triangle</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="square">Square</option>
+          </select>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Gain</span>
+          <input type="range" class="sd-slider" data-param="osc1.gain" min="0" max="1" step="0.01" value="0.8">
+          <span class="sd-value">0.80</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Detune</span>
+          <input type="range" class="sd-slider" data-param="osc1.detune" min="-50" max="50" step="1" value="0">
+          <span class="sd-value">0</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Octave</span>
+          <input type="range" class="sd-slider" data-param="osc1.octave" min="-2" max="3" step="1" value="0">
+          <span class="sd-value">0</span>
+        </div>
+      </div>
+
+      <!-- OSC 2 -->
+      <div class="sd-section">
+        <div class="sd-section-title"><span>Oscillator 2</span><button class="sd-osc-toggle enabled" id="osc2Toggle">On</button></div>
+        <div class="sd-row">
+          <span class="sd-label">Wave</span>
+          <select class="sd-select" data-param="osc2.type">
+            <option value="sine" selected>Sine</option>
+            <option value="triangle">Triangle</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="square">Square</option>
+          </select>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Gain</span>
+          <input type="range" class="sd-slider" data-param="osc2.gain" min="0" max="1" step="0.01" value="0.2">
+          <span class="sd-value">0.20</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Detune</span>
+          <input type="range" class="sd-slider" data-param="osc2.detune" min="-50" max="50" step="1" value="3">
+          <span class="sd-value">3</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Octave</span>
+          <input type="range" class="sd-slider" data-param="osc2.octave" min="-2" max="3" step="1" value="1">
+          <span class="sd-value">1</span>
+        </div>
+      </div>
+
+      <!-- OSC 3 (Sub) -->
+      <div class="sd-section">
+        <div class="sd-section-title"><span>Oscillator 3 (Sub)</span><button class="sd-osc-toggle" id="osc3Toggle">Off</button></div>
+        <div class="sd-row">
+          <span class="sd-label">Wave</span>
+          <select class="sd-select" data-param="osc3.type">
+            <option value="sine" selected>Sine</option>
+            <option value="triangle">Triangle</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="square">Square</option>
+          </select>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Gain</span>
+          <input type="range" class="sd-slider" data-param="osc3.gain" min="0" max="1" step="0.01" value="0">
+          <span class="sd-value">0.00</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Detune</span>
+          <input type="range" class="sd-slider" data-param="osc3.detune" min="-50" max="50" step="1" value="0">
+          <span class="sd-value">0</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Octave</span>
+          <input type="range" class="sd-slider" data-param="osc3.octave" min="-2" max="3" step="1" value="-1">
+          <span class="sd-value">-1</span>
+        </div>
+      </div>
+
+      <!-- Filter -->
+      <div class="sd-section">
+        <div class="sd-section-title">Filter</div>
+        <div class="sd-row">
+          <span class="sd-label">Type</span>
+          <select class="sd-select" data-param="filter.type">
+            <option value="lowpass" selected>Lowpass</option>
+            <option value="highpass">Highpass</option>
+            <option value="bandpass">Bandpass</option>
+            <option value="notch">Notch</option>
+          </select>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Cutoff</span>
+          <input type="range" class="sd-slider" data-param="filter.cutoff" min="20" max="16000" step="10" value="4000">
+          <span class="sd-value">4000</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Resonance</span>
+          <input type="range" class="sd-slider" data-param="filter.resonance" min="0" max="20" step="0.1" value="1">
+          <span class="sd-value">1.0</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Env Amt</span>
+          <input type="range" class="sd-slider" data-param="filter.envAmount" min="0" max="8000" step="10" value="0">
+          <span class="sd-value">0</span>
+        </div>
+      </div>
+
+      <!-- Amp Envelope -->
+      <div class="sd-section">
+        <div class="sd-section-title">Amp Envelope</div>
+        <div class="sd-row">
+          <span class="sd-label">Attack</span>
+          <input type="range" class="sd-slider" data-param="env.attack" min="0.001" max="2" step="0.001" value="0.01">
+          <span class="sd-value">10ms</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Decay</span>
+          <input type="range" class="sd-slider" data-param="env.decay" min="0.01" max="3" step="0.01" value="0.15">
+          <span class="sd-value">150ms</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Sustain</span>
+          <input type="range" class="sd-slider" data-param="env.sustain" min="0" max="1" step="0.01" value="0.4">
+          <span class="sd-value">0.40</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Release</span>
+          <input type="range" class="sd-slider" data-param="env.release" min="0.01" max="4" step="0.01" value="0.3">
+          <span class="sd-value">300ms</span>
+        </div>
+      </div>
+
+      <!-- Pitch / Global -->
+      <div class="sd-section">
+        <div class="sd-section-title">Pitch &amp; Modulation</div>
+        <div class="sd-row">
+          <span class="sd-label">Pitch</span>
+          <input type="range" class="sd-slider" data-param="pitchBend" min="-12" max="12" step="1" value="0">
+          <span class="sd-value">0 st</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Vib Rate</span>
+          <input type="range" class="sd-slider" data-param="vibratoRate" min="0" max="15" step="0.1" value="0">
+          <span class="sd-value">0 Hz</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Vib Depth</span>
+          <input type="range" class="sd-slider" data-param="vibratoDepth" min="0" max="50" step="1" value="0">
+          <span class="sd-value">0 ct</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Volume</span>
+          <input type="range" class="sd-slider" data-param="masterGainVal" min="0.05" max="0.8" step="0.01" value="0.35">
+          <span class="sd-value">0.35</span>
+        </div>
+      </div>
+
+      <!-- Noise Oscillator -->
+      <div class="sd-section">
+        <div class="sd-section-title">Noise</div>
+        <div class="sd-row">
+          <span class="sd-label">Type</span>
+          <select class="sd-select" data-param="noise.type">
+            <option value="white" selected>White</option>
+            <option value="pink">Pink</option>
+          </select>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Gain</span>
+          <input type="range" class="sd-slider" data-param="noise.gain" min="0" max="1" step="0.01" value="0">
+          <span class="sd-value">0.00</span>
+        </div>
+      </div>
+
+      <!-- Filter Envelope -->
+      <div class="sd-section">
+        <div class="sd-section-title">Filter Envelope</div>
+        <div class="sd-row">
+          <span class="sd-label">Attack</span>
+          <input type="range" class="sd-slider" data-param="filterEnv.attack" min="0.001" max="2" step="0.001" value="0.01">
+          <span class="sd-value">10ms</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Decay</span>
+          <input type="range" class="sd-slider" data-param="filterEnv.decay" min="0.01" max="3" step="0.01" value="0.3">
+          <span class="sd-value">300ms</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Sustain</span>
+          <input type="range" class="sd-slider" data-param="filterEnv.sustain" min="0" max="1" step="0.01" value="0.2">
+          <span class="sd-value">0.20</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Release</span>
+          <input type="range" class="sd-slider" data-param="filterEnv.release" min="0.01" max="4" step="0.01" value="0.4">
+          <span class="sd-value">400ms</span>
+        </div>
+      </div>
+
+      <!-- LFO → Filter -->
+      <div class="sd-section">
+        <div class="sd-section-title">Filter LFO</div>
+        <div class="sd-row">
+          <span class="sd-label">Rate</span>
+          <input type="range" class="sd-slider" data-param="filterLfo.rate" min="0" max="20" step="0.1" value="0">
+          <span class="sd-value">0 Hz</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Depth</span>
+          <input type="range" class="sd-slider" data-param="filterLfo.depth" min="0" max="4000" step="10" value="0">
+          <span class="sd-value">0</span>
+        </div>
+        <div class="sd-row">
+          <span class="sd-label">Wave</span>
+          <select class="sd-select" data-param="filterLfo.type">
+            <option value="sine" selected>Sine</option>
+            <option value="triangle">Triangle</option>
+            <option value="square">Square</option>
+            <option value="sawtooth">Sawtooth</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sd-actions">
+      <button class="sd-action-btn" id="sdRandomize">🎲 Randomize</button>
+      <button class="sd-action-btn" id="sdExport">Export Synth Settings</button>
+      <button class="sd-action-btn" id="sdImport">Import Synth Settings</button>
+    </div>
+  </div>
+
+  <!-- ===================== STUDIO SECTION ===================== -->
+  <!-- Record button + Metronome + Studio toggle -->
+  <div class="studio-bar">
+    <button class="rec-btn" id="recBtn">
+      <span class="rec-dot"></span>
+      <span class="rec-label">Record</span>
+    </button>
+    <span class="overdub-indicator" id="overdubIndicator">
+      <span class="overdub-icon">&#9654;</span>
+      <span class="overdub-text">Overdub</span>
+    </span>
+
+    <div class="metro-controls">
+      <button class="metro-btn" id="metroToggle" title="Metronome on/off">
+        <span class="metro-icon">&#9834;</span>
+      </button>
+      <button class="metro-tap" id="metroBpmDown" title="Decrease BPM">−</button>
+      <span class="metro-bpm" id="metroBpmDisplay">120</span>
+      <button class="metro-tap" id="metroBpmUp" title="Increase BPM">+</button>
+      <select class="metro-time-sig" id="metroTimeSig" title="Time signature">
+        <option value="4">4/4</option>
+        <option value="3">3/4</option>
+      </select>
+    </div>
+
+    <button class="designer-toggle" id="studioToggle">Studio</button>
+  </div>
+
+  <!-- Countdown overlay -->
+  <div class="countdown-overlay" id="countdownOverlay">
+    <span class="countdown-number" id="countdownNumber"></span>
+  </div>
+
+  <!-- Studio Panel (Library + 4-Track) -->
+  <div class="studio-panel" id="studioPanel">
+    <div class="studio-inner">
+      <!-- Library -->
+      <div class="studio-section">
+        <div class="studio-section-title">
+          <span>Recording Library</span>
+          <span class="lib-count-badge" id="libCount">0 / 10</span>
+        </div>
+        <div class="lib-hint">Recordings are session-only — export before refreshing!</div>
+        <div class="library-list" id="libraryList">
+          <div class="lib-empty">No recordings yet — hit Record and play!</div>
+        </div>
+      </div>
+
+      <!-- 4-Track Player -->
+      <div class="studio-section">
+        <div class="studio-section-title">
+          <span>4-Track Player</span>
+          <div class="track-transport">
+            <button class="track-play-btn" id="trackPlayBtn" title="Play all tracks">&#9654;</button>
+            <span class="track-time" id="trackTime">0:00.0</span>
+          </div>
+        </div>
+        <div class="track-hint">Drag recordings from the library onto tracks below</div>
+        <div class="tracks-container">
+          <div class="track-playhead-line" id="trackPlayhead"></div>
+          <div class="track-row" id="track0">
+            <div class="track-header">
+              <span class="track-num">1</span>
+              <button class="track-ctrl track-mute" title="Mute">M</button>
+              <button class="track-ctrl track-solo" title="Solo">S</button>
+              <input type="range" class="track-vol" min="0" max="1" step="0.01" value="0.8" title="Volume">
+              <button class="track-ctrl track-remove" title="Remove" style="display:none">&times;</button>
+            </div>
+            <div class="track-body">
+              <canvas class="track-waveform"></canvas>
+              <span class="track-label">Track 1 — drag a recording here</span>
+            </div>
+          </div>
+          <div class="track-row" id="track1">
+            <div class="track-header">
+              <span class="track-num">2</span>
+              <button class="track-ctrl track-mute" title="Mute">M</button>
+              <button class="track-ctrl track-solo" title="Solo">S</button>
+              <input type="range" class="track-vol" min="0" max="1" step="0.01" value="0.8" title="Volume">
+              <button class="track-ctrl track-remove" title="Remove" style="display:none">&times;</button>
+            </div>
+            <div class="track-body">
+              <canvas class="track-waveform"></canvas>
+              <span class="track-label">Track 2 — drag a recording here</span>
+            </div>
+          </div>
+          <div class="track-row" id="track2">
+            <div class="track-header">
+              <span class="track-num">3</span>
+              <button class="track-ctrl track-mute" title="Mute">M</button>
+              <button class="track-ctrl track-solo" title="Solo">S</button>
+              <input type="range" class="track-vol" min="0" max="1" step="0.01" value="0.8" title="Volume">
+              <button class="track-ctrl track-remove" title="Remove" style="display:none">&times;</button>
+            </div>
+            <div class="track-body">
+              <canvas class="track-waveform"></canvas>
+              <span class="track-label">Track 3 — drag a recording here</span>
+            </div>
+          </div>
+          <div class="track-row" id="track3">
+            <div class="track-header">
+              <span class="track-num">4</span>
+              <button class="track-ctrl track-mute" title="Mute">M</button>
+              <button class="track-ctrl track-solo" title="Solo">S</button>
+              <input type="range" class="track-vol" min="0" max="1" step="0.01" value="0.8" title="Volume">
+              <button class="track-ctrl track-remove" title="Remove" style="display:none">&times;</button>
+            </div>
+            <div class="track-body">
+              <canvas class="track-waveform"></canvas>
+              <span class="track-label">Track 4 — drag a recording here</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="visualizer" id="visualizer"><canvas id="vizCanvas"></canvas></div>
+<div class="hint" id="hint">A–L keys • Z/X octave shift • ↑/↓ transpose • Space = Sustain</div>
+
+<input type="file" id="patchFileInput" accept=".json,.txt" style="display:none">
+
+<!-- Modular scripts -->
+<script src="audio.js"></script>
+<script src="keymaps.js"></script>
+<script src="recorder.js"></script>
+<script src="piano-ui.js"></script>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
